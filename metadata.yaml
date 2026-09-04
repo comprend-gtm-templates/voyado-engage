@@ -15,6 +15,10 @@
 homepage: "https://www.comprend.com"
 documentation: "https://github.com/comprend-gtm-templates/voyado-engage"
 versions:
+  - sha: bcbddf55f630ecc37d0d44e65a444f242dec7b74
+    changeNotes: |-
+      - Fix invalid info JSON
+      - Update display name to include company brand
   - sha: 5b0f607718539f154b80dc87aa3a5c8676a9706d
     changeNotes: |-
       - Update template categories.
