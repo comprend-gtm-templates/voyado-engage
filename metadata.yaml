@@ -15,6 +15,9 @@
 homepage: "https://www.comprend.com"
 documentation: "https://github.com/comprend-gtm-templates/voyado-engage"
 versions:
+  - sha: f447a92f9ce67a295815137eb3ca31b594fe2b64
+    changeNotes: |-
+      Add missing permissions for _voyado namespace.
   - sha: 042d0ef9241afbe808e4563d45a460f485648d1b
     changeNotes: |-
       - Fix minor error related to items.
