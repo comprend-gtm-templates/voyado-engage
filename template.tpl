@@ -81,32 +81,16 @@ ___TEMPLATE_PARAMETERS___
             "type": "NON_EMPTY"
           }
         ],
-        "alwaysInSummary": true
+        "alwaysInSummary": true,
+        "help": "Your unique client (tenant) ID. It is the same in production and staging, and is usually the subdomain in your Engage root URL. For example, if your URL is \"supershop.voyado.com\", the tenant ID is \"supershop\". Contact your Voyado Engage team if you are unsure."
       },
       {
         "type": "TEXT",
         "name": "scriptVersion",
         "displayName": "Script Version",
         "simpleValueType": true,
-        "canBeEmptyString": false,
-        "defaultValue": "0.1.7",
         "valueHint": "0.1.7",
-        "valueValidators": [
-          {
-            "type": "REGEX",
-            "args": [
-              "^\\d+\\.\\d+\\.\\d+$"
-            ],
-            "errorMessage": "Invalid script version",
-            "enablingConditions": [
-              {
-                "paramName": "scriptVersion",
-                "paramValue": "",
-                "type": "PRESENT"
-              }
-            ]
-          }
-        ]
+        "help": "0.1.7 is the latest version. You can pin an earlier version if you need to, but note that server-side cookie support requires 0.1.7 or later."
       },
       {
         "type": "SELECT",
@@ -116,11 +100,11 @@ ___TEMPLATE_PARAMETERS___
         "selectItems": [
           {
             "value": "staging",
-            "displayValue": "Staging"
+            "displayValue": "staging"
           },
           {
             "value": "production",
-            "displayValue": "Production"
+            "displayValue": "production"
           }
         ],
         "simpleValueType": true,
@@ -131,7 +115,6 @@ ___TEMPLATE_PARAMETERS___
         "type": "SELECT",
         "name": "namespace",
         "displayName": "Namespace",
-        "macrosInSelect": false,
         "selectItems": [
           {
             "value": "va",
@@ -140,11 +123,15 @@ ___TEMPLATE_PARAMETERS___
           {
             "value": "voyado",
             "displayValue": "voyado"
+          },
+          {
+            "value": "_voyado",
+            "displayValue": "_voyado"
           }
         ],
         "simpleValueType": true,
         "defaultValue": "va",
-        "help": "If the namespace \"va\" clashes with another global variable you can change the value of the VoyadoAnalyticsObject to \"voyado\"."
+        "help": "If the namespace \"va\" clashes with another global variable you can change the value of the VoyadoAnalyticsObject."
       }
     ],
     "enablingConditions": [
@@ -333,96 +320,42 @@ const templateStorage = require('templateStorage');
 const getTimestampMillis = require('getTimestampMillis');
 const getQueryParameters = require('getQueryParameters');
 const createArgumentsQueue = require('createArgumentsQueue');
+const makeString = require('makeString');
+const getType = require('getType');
 
 const namespace = templateStorage.getItem('voyadoNamespace') || data.namespace || 'va';
 templateStorage.setItem('voyadoNamespace', namespace);
 
+const config = {
+  namespace: namespace || 'va',
+  tenantId: data.tenantId,
+  scriptVersion: data.scriptVersion || '0.1.7',
+  scriptType: makeString(data.environment).toLowerCase() === 'staging' ? 'staging.min.js' : '.min.js',
+  autoEClub: data.autoEClub || false,
+  items: data.items,
+  cartRef: data.cartRef,
+  cartUrl: data.cartUrl,
+  locale: data.locale,
+  categoryName: data.categoryName,
+  itemId: data.itemId,
+  contactId: data.contactId,
+};
+
 const action = data.voyadoAction;
+checkErrors(action, config);
 
 if (action === 'load') {
-    const requiredProps = ['tenantId', 'scriptVersion', 'environment'];
-  // Check for errors
-  const errors = [];
-  requiredProps.forEach(prop => !data[prop] && errors.push(prop));
-  // Log errors and fail
-  if (errors.length) {
-    errors.map(errorProp => log('Missing property: ' + errorProp));
-    return data.gtmOnFailure();
-  }
-  // Load script
-  return loadScript();
+  loadScript();
 }
-
-else if (action === 'setContactId') {
-  setContactId();
-}
-
-else if (action === 'emptyCart') {
-  // Check for errors and fail
-  if (!data.cartRef) {
-    log('Missing property: cartRef');
-    return data.gtmOnFailure();
+else {
+  if (action === 'setContactId') {
+    setContactId();
   }
-  // Send event
-  const eventObject = {
-    cartRef: data.cartRef,
-  };
-  if (data.contactId) eventObject.contactId = data.contactId;
-  callVa(action, eventObject);
-}
-
-else if (action === 'cart') {
-  const requiredProps = ['cartRef', 'locale', 'items'];
-  // Check for errors
-  const errors = [];
-  requiredProps.forEach(prop => !data[prop] && errors.push(prop));
-  // Log errors and fail
-  if (errors.length) {
-    errors.map(errorProp => log('Missing property: ' + errorProp));
-    return data.gtmOnFailure();
+  else {
+    sendEvent(action);
   }
-  // Check for item errors
-  data.items.forEach(item => {
-    if (!item.itemId) errors.push('items[].itemId');
-    if (typeof item.quantity !== 'number') errors.push('items[].quantity');
-  });
-  // Log errors and fail
-  if (errors.length) {
-    errors.map(errorProp => log('Invalid or missing property: ' + errorProp));
-    return data.gtmOnFailure();
-  }
-  // Send event
-  const eventObject = {
-    locale: data.locale,
-    cartRef: data.cartRef,
-    items: data.items,
-  };
-  if (data.cartUrl) eventObject.cartUrl = data.cartUrl;
-  if (data.contactId) eventObject.contactId = data.contactId;
-  callVa(action, eventObject);
+  data.gtmOnSuccess();
 }
-
-else if (action === 'productview') {
-  const requiredProps = ['locale', 'itemId', 'categoryName'];
-  // Check for errors
-  const errors = [];
-  requiredProps.forEach(prop => !data[prop] && errors.push(prop));
-  // Log errors and fail
-  if (errors.length) {
-    errors.map(errorProp => log('Missing property: ' + errorProp));
-    return data.gtmOnFailure();
-  }
-  // Send event
-  const eventObject = {
-    locale: data.locale,
-    categoryName: data.categoryName,
-    itemId: data.itemId,
-  };
-  if (data.contactId) eventObject.contactId = data.contactId;
-  callVa(action, eventObject);
-}
-
-return data.gtmOnSuccess();
 
 /****************** HELPER FUNCTIONS ******************/
 
@@ -430,8 +363,62 @@ function log(message) {
   logToConsole('[' + action + '] ', message);
 }
 
+function checkErrors(action, eventObject) {
+  const requiredProperties = ({
+    load: ['tenantId'],
+    emptyCart: ['cartRef'],
+    cart: ['cartRef', 'locale', 'items'],
+    productview: ['locale', 'itemId', 'categoryName'],
+  })[action] || [];
+
+  const errors = [];
+  requiredProperties.forEach(prop => {
+    if (prop === 'items') {
+      if (getType(config.items) !== 'array')
+        errors.push('items');
+      else {
+        config.items.forEach(item => {
+          if (!item.itemId)
+            errors.push('items[].itemId');
+          if (getType(item.quantity) !== 'number')
+            errors.push('items[].quantity');
+        });
+      }
+    }
+    else if (getType(eventObject[prop]) === 'undefined')
+      errors.push(prop);
+  });
+  errors.forEach(errorProp => log('[ERROR] Missing or invalid property: "' + errorProp + '"'));
+}
+
 function callVa(action, eventObject) {
-  callInWindow(namespace, action, eventObject);
+  callInWindow(config.namespace, action, eventObject);
+}
+
+function getEventObject(action) {
+  const eventObject = {};
+  if (config.locale)
+    eventObject.locale = config.locale;
+  if (config.contactId)
+    eventObject.contactId = config.contactId;
+  if (action === 'emptyCart') {
+    eventObject.cartRef = config.cartRef;
+  }
+  if (action === 'cart') {
+    eventObject.cartRef = config.cartRef;
+    eventObject.items = config.items;
+    eventObject.cartUrl = config.cartUrl;
+  }
+  if (action === 'productview') {
+    eventObject.categoryName = config.categoryName;
+    eventObject.itemId = config.itemId;
+  }
+  return eventObject;
+}
+
+function sendEvent(action) {
+  const eventObject = getEventObject(action);
+  callVa(action, eventObject);
 }
 
 function setContactId() {
@@ -440,25 +427,26 @@ function setContactId() {
     callVa('setContactId', contactId);
     log('Contact id updated.');
   }
-  else
-    log('No contact id provided. Fallback to cookie value.');
 }
 
 function getContactId() {
-  const eClub = data.autoEClub && getQueryParameters('eClub');
+  const eClub = config.autoEClub && getQueryParameters('eClub');
   if (eClub) log('eClub parameter found.');
-  return eClub || data.contactId;
+  return eClub || config.contactId;
 }
 
 
 function loadScript() {
-  let scriptUrl = 'https://assets.voyado.com/jsfiles/analytics_' + data.scriptVersion;
-  scriptUrl += data.environment === 'staging' ? '.staging.min.js' : '.min.js';
+  const scriptUrl = [
+    'https://assets.voyado.com/jsfiles/analytics_',
+    config.scriptVersion,
+    config.scriptType
+  ].join('');
 
-  setInWindow('VoyadoAnalyticsObject', namespace, true);
-  const va = createArgumentsQueue(namespace, namespace + '.q');
-  setInWindow(namespace + '.l', getTimestampMillis(), false);
-  va('setTenant', data.tenantId);
+  setInWindow('VoyadoAnalyticsObject', config.namespace, true);
+  const va = createArgumentsQueue(config.namespace, config.namespace + '.q');
+  setInWindow(config.namespace + '.l', getTimestampMillis(), false);
+  va('setTenant', config.tenantId);
   setContactId();
 
   injectScript(scriptUrl, data.gtmOnSuccess, data.gtmOnFailure, scriptUrl);
@@ -752,6 +740,45 @@ ___WEB_PERMISSIONS___
                     "boolean": false
                   }
                 ]
+              },
+              {
+                "type": 3,
+                "mapKey": [
+                  {
+                    "type": 1,
+                    "string": "key"
+                  },
+                  {
+                    "type": 1,
+                    "string": "read"
+                  },
+                  {
+                    "type": 1,
+                    "string": "write"
+                  },
+                  {
+                    "type": 1,
+                    "string": "execute"
+                  }
+                ],
+                "mapValue": [
+                  {
+                    "type": 1,
+                    "string": "_voyado"
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  },
+                  {
+                    "type": 8,
+                    "boolean": true
+                  }
+                ]
               }
             ]
           }
@@ -851,6 +878,9 @@ ___WEB_PERMISSIONS___
           }
         }
       ]
+    },
+    "clientAnnotations": {
+      "isEditedByUser": true
     },
     "isRequired": true
   },
