@@ -15,6 +15,10 @@
 homepage: "https://www.comprend.com"
 documentation: "https://github.com/comprend-gtm-templates/voyado-engage"
 versions:
+  - sha: 042d0ef9241afbe808e4563d45a460f485648d1b
+    changeNotes: |-
+      - Fix minor error related to items.
+      - Update error handling. Errors will no longer prevent the template from running.
   - sha: 25ff448ce84707d0014287735b2c6635c10713e8
     changeNotes: |-
       - Agree to the Community Template Gallery Terms of Service.
